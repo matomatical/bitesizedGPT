@@ -35,13 +35,22 @@ class ByteCorpus:
         return data[idx]
 
 
+def complete(model, prompt, max_bytes, device=None):
+    v = str2bytevec(prompt, device=device)          # T_0
+    while len(v) < max_bytes:
+        v_ = v[None, max(0, len(v)-model.max_context_length):]
+        last_logits = model(v_)[0, -1, :]           # T_i V -slice-> V
+        probs = fn.softmax(last_logits, dim=0)      # V -> V
+        b = torch.multinomial(probs, num_samples=1) #   -> 1
+        v = torch.cat((v, b))                # T_i | 1  -> T_i+1 =: T_{i+1}
+    return bytevec2str(v)
+
+
 def next_byte_cross_entropy_loss(bytes_, next_byte_logits):
     B, T, V = next_byte_logits.shape
     next_bytes = bytes_[:, 1:].reshape(B*(T-1))
     next_byte_logits = next_byte_logits[:, :-1, :].reshape(B*(T-1), V)
     return fn.cross_entropy(next_byte_logits, next_bytes)
-
-
 
 
 class ByteTransformer(nn.Module):
@@ -55,6 +64,7 @@ class ByteTransformer(nn.Module):
         device=None,
     ):
         super().__init__()
+        self.max_context_length = max_context_length
         self.decode_transformer = DecodeTransformer(
             max_context_length=max_context_length,
             alphabet_size=128,

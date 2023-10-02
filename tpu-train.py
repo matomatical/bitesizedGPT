@@ -4,7 +4,12 @@ from model import ByteTransformer, ByteCorpus
 from model import complete, next_byte_cross_entropy_loss
 
 
-DEVICE = 'cpu'
+print("importing torch_xla...")
+import os
+os.environ['PJRT_DEVICE'] = "TPU"
+import torch_xla.core.xla_model as xm
+print("initialising default xla device...")
+DEVICE = xm.xla_device()
 
 
 def train():
@@ -42,8 +47,11 @@ def train():
         cycle_momentum=False, # N/A for adam but required to avoid error
     )
 
+    xm.mark_step()
+
     print("training model...")
     for steps in tqdm.trange(num_training_steps):
+        xm.mark_step()
         batch = data.get_training_batch(seq_length=128, batch_size=32)
         logits = model(batch)
         loss = next_byte_cross_entropy_loss(batch, logits)
@@ -51,10 +59,12 @@ def train():
         loss.backward()
         optimizer.step()
         scheduler.step()
+        xm.mark_step()
 
         # evaluate periodically
         if steps % 100 == 0:
             tqdm.tqdm.write(f"eval at step {steps:>6d}")
+            xm.mark_step()
             model.eval()
             # batch loss
             tqdm.tqdm.write(f"  training loss: {loss.item():>6.3f}")
@@ -73,8 +83,8 @@ def train():
                 )
             tqdm.tqdm.write(f"  continuation:  {ctn!r}")
             model.train()
+            xm.mark_step()
 
-    
     print("done")
 
 
