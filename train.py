@@ -6,13 +6,14 @@ from model import ByteTransformer, ByteCorpus
 from model import complete, next_byte_cross_entropy_loss
 
 
-if sys.argv[1:]:
-    DEVICE = sys.argv[1]
-else:
-    DEVICE = 'cpu'
-
-
 def train():
+    print("choosing device...")
+    if sys.argv[1:]:
+        DEVICE = sys.argv[1]
+    else:
+        DEVICE = 'cpu'
+    print("device:", DEVICE)
+
     print("loading data...")
     data = ByteCorpus(
         path="data/sherlock-ascii.txt",
