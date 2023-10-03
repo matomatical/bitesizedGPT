@@ -30,20 +30,10 @@ def train():
     model.train()
     
     # initialising training stuff
-    num_training_steps = 100000
+    num_training_steps = 50000
     optimizer = torch.optim.Adam(
         model.parameters(),
-        lr=0.0001,
-    )
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        optimizer=optimizer,
-        max_lr=0.0003,
-        anneal_strategy='linear',
-        total_steps=num_training_steps,
-        pct_start=0.50,
-        div_factor=num_training_steps / 2,
-        final_div_factor=num_training_steps / 2,
-        cycle_momentum=False, # N/A for adam but required to avoid error
+        lr=0.001,
     )
 
     print("training model...")
@@ -54,7 +44,6 @@ def train():
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
-        scheduler.step()
 
         # evaluate periodically
         if steps % 100 == 0:
