@@ -1,4 +1,5 @@
 import sys
+import time
 import tqdm
 import torch
 from model import ByteTransformer, ByteCorpus
@@ -63,7 +64,13 @@ def train():
             tqdm.tqdm.write(f"  continuation:  {ctn!r}")
             model.train()
 
-    print("done")
+    print("done!")
+    print("generating passage from model...")
+    model.to('cpu')
+    ctn = complete(model, '"Elementary, my dear', max_bytes=512)
+    for c in ctn:
+        print(c, end="", flush=True)
+        time.sleep(0.05)
 
 
 if __name__ == "__main__":
