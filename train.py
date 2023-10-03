@@ -74,7 +74,6 @@ def train():
             tqdm.tqdm.write(f"  continuation:  {ctn!r}")
             model.train()
 
-    
     print("done")
 
 
