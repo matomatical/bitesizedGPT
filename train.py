@@ -1,10 +1,14 @@
+import sys
 import tqdm
 import torch
 from model import ByteTransformer, ByteCorpus
 from model import complete, next_byte_cross_entropy_loss
 
 
-DEVICE = 'cpu'
+if sys.argv[1:]:
+    DEVICE = sys.argv[1]
+else:
+    DEVICE = 'cpu'
 
 
 def train():
@@ -66,11 +70,7 @@ def train():
             tqdm.tqdm.write(f"  testing loss:  {loss.item():>6.3f}")
             # prompt
             with torch.no_grad():
-                ctn = complete(
-                    model, '"Elementary, my dear',
-                    max_bytes=32,
-                    device=DEVICE,
-                )
+                ctn = complete(model, '"Elementary, my dear', max_bytes=32)
             tqdm.tqdm.write(f"  continuation:  {ctn!r}")
             model.train()
 

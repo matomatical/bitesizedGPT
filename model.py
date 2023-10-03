@@ -1,4 +1,5 @@
 """
+
 TOOD: Acknowledge Karpathy. TODO: list some transformer resources.
 """
 
@@ -13,6 +14,13 @@ def str2bytevec(s, device=None):
 
 def bytevec2str(b):
     return bytes(b).decode()
+
+
+def complete(model, prompt, max_bytes):
+    b = str2bytevec(prompt, device=model.device)
+    c = model.complete(b, max_bytes=max_bytes)
+    s = bytevec2str(c)
+    return s
 
 
 class ByteCorpus:
@@ -33,17 +41,6 @@ class ByteCorpus:
         idx_start = torch.randint(len(data)-seq_length, (batch_size,))
         idx = idx_start.view(-1, 1) + torch.arange(seq_length)
         return data[idx]
-
-
-def complete(model, prompt, max_bytes, device=None):
-    v = str2bytevec(prompt, device=device)          # T_0
-    while len(v) < max_bytes:
-        v_ = v[None, max(0, len(v)-model.max_context_length):]
-        last_logits = model(v_)[0, -1, :]           # T_i V -slice-> V
-        probs = fn.softmax(last_logits, dim=0)      # V -> V
-        b = torch.multinomial(probs, num_samples=1) #   -> 1
-        v = torch.cat((v, b))                # T_i | 1  -> T_i+1 =: T_{i+1}
-    return bytevec2str(v)
 
 
 def next_byte_cross_entropy_loss(bytes_, next_byte_logits):
@@ -74,12 +71,27 @@ class ByteTransformer(nn.Module):
             num_layers=num_layers,
             device=device,
         )
-        self.eye = torch.eye(128, device=device)
+        self.register_buffer('onehot', torch.eye(128, device=device))
+        self.device = device
+
+    def to(self, device):
+        super().to(device)
+        self.device = device
 
     def forward(self, bytes_):
-        tokens = self.eye[bytes_]
+        tokens = self.onehot[bytes_]
         logits = self.decode_transformer(tokens)
         return logits
+
+    def complete(self, prompt, max_bytes):
+        v = prompt[:]
+        while len(v) < max_bytes:
+            v_ = v[None, max(0, len(v)-self.max_context_length):]
+            last_logits = self(v_)[0, -1, :]
+            probs = fn.softmax(last_logits, dim=0)
+            b = torch.multinomial(probs, num_samples=1)
+            v = torch.cat((v, b))
+        return v
 
 
 class DecodeTransformer(nn.Module):
@@ -91,7 +103,7 @@ class DecodeTransformer(nn.Module):
         mlp_size,
         num_heads,
         num_layers,
-        device='cpu',
+        device=None,
     ):
         super().__init__()
         self.token_embedding = nn.Linear(
@@ -130,10 +142,12 @@ class DecodeTransformer(nn.Module):
         )
         self.max_context_length = max_context_length
         
-
+    
     def forward(self, toks):
         _B, T, _V = toks.shape
-        assert T<=self.max_context_length, f"too many tokens! {T} > {self.max_context_length}"
+        T_max = self.max_context_length
+        if T > T_max:
+            raise ValueError(f"too many tokens! {T} > {T_max}")
 
         # semantic and positional token embeddings
         x_positions = self.postn_embedding.weight.T[:T, :] # Tmax C ->   T C
@@ -148,12 +162,9 @@ class DecodeTransformer(nn.Module):
         y = self.unembedding(x)                     # B T C @ . C V -> B T V
         
         return y
-        # NOTE:
+        # TODO: optimise
         # during training,  we only care about y[:, :-1, :]...
         # during inference, we only care about y[:, -1:, :]...
-        # TODO: optimise!
-        # (moreover in the in-context regression setting, we really only care
-        # about every second token prediction to begin with...)
 
 
 class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
@@ -163,7 +174,7 @@ class MultiHeadedCausalSelfAttentionTransformerBlock(nn.Module):
         mlp_size,
         max_context_length,
         num_heads,
-        device='cpu',
+        device=None,
     ):
         super().__init__()
         self.attention = MultiHeadedCausalSelfAttention(
@@ -196,7 +207,7 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         embed_size,
         max_context_length,
         num_heads,
-        device='cpu',
+        device=None,
     ):
         super().__init__()
         # validate dimensions
@@ -213,8 +224,8 @@ class MultiHeadedCausalSelfAttention(nn.Module):
         )
         # precompute causal mask
         mask_shape = (max_context_length, max_context_length)
-        causal_mask = torch.log(torch.tril(torch.ones(mask_shape, device=device)))
-        self.register_buffer('causal_mask', causal_mask)
+        causal_mask = torch.log(torch.tril(torch.ones(mask_shape)))
+        self.register_buffer('causal_mask', causal_mask.to(device))
         # precompute attention normalisation factor
         self.attention_scale = self.head_size ** 0.5
 
