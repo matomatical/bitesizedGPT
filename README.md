@@ -16,7 +16,7 @@ The main differences are:
   in nanoGPT).
 * We use the full Sherlock Holmes canon as a data set (rather than complete
   works of Shakespeare).
-* The total lines of code is just 264 (compared to ~600 for nanoGPT).
+* The total lines of code is just 263 (compared to ~600 for nanoGPT).
 
 Whereas nanoGPT can fit on my laptop, bitesizedGPT can fit in my head.
 
