@@ -62,7 +62,8 @@ def train(device):
     print("done!")
     print("generating passage from model...")
     model.to('cpu')
-    ctn = complete(model, '"Elementary, my dear', max_bytes=256)
+    with torch.no_grad():
+        ctn = complete(model, '"Elementary, my dear', max_bytes=256)
     for c in ctn:
         print(c, end="", flush=True)
         time.sleep(0.06125)
